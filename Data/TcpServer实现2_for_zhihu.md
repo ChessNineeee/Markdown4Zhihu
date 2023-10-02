@@ -29,7 +29,7 @@ private:
 
 成员之间的类型依赖图如下：
 
-![diagram](https://raw.githubusercontent.com/ChessNineeee/Markdown4Zhihu/master/Data/TcpServer实现2/TcpServer实现2-1.svg)
+![diagram](https://raw.githubusercontent.com/ChessNineeee/Markdown4Zhihu/master/Data/TcpServer实现2/TcpServer实现2-1_1.svg)
 
 接下来我们详细分析`TcpServer`的关键数据成员，上文我们已经详细介绍了`EventLoop`类型的实现，故在本文中我们不再进行介绍。`Acceptor` 结构的定义中同样包含 `TcpConnection` 类型的成员，因此为了降低理解的难度，我们首先分析`TcpConnection` 的实现。
 
@@ -60,24 +60,24 @@ private:
 
 我们知道，从服务器的角度出发，一条TCP连接对应了内核套接字对象，每个内核套接字在用户态都对应了一个文件描述符。成员`socket_` 表示本TCP连接所持有的套接字，它的类型是`Socket`，这是一种muduo封装的套接字类型，我们将在后面介绍该类型。成员`channel_` 表示本TCP连接对应的文件描述符以及其一系列事件的封装。
 
-![diagram](https://raw.githubusercontent.com/ChessNineeee/Markdown4Zhihu/master/Data/TcpServer实现2/TcpServer实现2-2.svg)
+![diagram](https://raw.githubusercontent.com/ChessNineeee/Markdown4Zhihu/master/Data/TcpServer实现2/TcpServer实现2-2_1.svg)
 
 `TcpConnection` 的两个成员是`inputBuffer_` 和 `outputBuffer_`，它们是TCP连接在用户态的输入缓冲区和输出缓冲区。到这里我们需要思考一个问题，既然内核套接字中也维护了输入和输出缓冲区，为什么我们还要在用户态再额外维护一个输入缓冲区和输出缓冲区呢？
 
 为了回答这个问题，让我们先将目光放到事件循环`EventLoop`上。我们知道，muduo采用的编程模型是每个线程单独维护一个`EventLoop`，一个`EventLoop` 可能会处理多个TCP连接的I/O事件。当某一时刻有多个TCP连接的I/O事件发生时，由于只有一个线程，因此这些I/O事件的处理是串行的。由于I/O事件是串行处理的，因此我们希望每个事件的处理过程中不要出现阻塞，否则一个事件阻塞住后将影响后续所有事件的处理。
 
-![diagram](https://raw.githubusercontent.com/ChessNineeee/Markdown4Zhihu/master/Data/TcpServer实现2/TcpServer实现2-3.svg)
+![diagram](https://raw.githubusercontent.com/ChessNineeee/Markdown4Zhihu/master/Data/TcpServer实现2/TcpServer实现2-3_1.svg)
 弄清楚这段逻辑关系后，我们再来分析为什么需要用户态的输入缓冲区。我们知道TCP协议是面向字节流的，因此每次用户态从内核套接字中读取到的数据可能不是完整的。举个例子，假设一个客户端的请求信息为80字节，我们此次从内核套接字中读取了64字节的数据，那么为了处理客户端的请求信息，我们需要等待剩余的16字节数据。此时我们有两个选择，第一是原地阻塞等待，直到后续的16字节到来，此时后面的I/O事件无法被处理；第二是将读取到的64字节放到输入缓冲区中，并结束处理流程，此时后面的I/O事件可以立即被处理。
 
-![diagram](https://raw.githubusercontent.com/ChessNineeee/Markdown4Zhihu/master/Data/TcpServer实现2/TcpServer实现2-4.svg)
+![diagram](https://raw.githubusercontent.com/ChessNineeee/Markdown4Zhihu/master/Data/TcpServer实现2/TcpServer实现2-4_1.svg)
 
 按照这个思路，我们再来分析为什么需要用户态的输出缓冲区。举个例子，假设收到请求后，服务端生成了一个响应，响应的信息为80字节；我们此次向内核套接字写入了64字节的数据，那么为了向客户端发送完整的响应信息，我们还需要发送剩余的16字节数据。此时我们有两个选择，第一是原地阻塞等待，直到能够向内核套接字写入剩余的16字节，此时后面的I/O事件无法被处理；第二是将剩余的16字节放到输出缓冲区中，并结束处理流程，此时后面的I/O事件可以立即被处理。
 
-![diagram](https://raw.githubusercontent.com/ChessNineeee/Markdown4Zhihu/master/Data/TcpServer实现2/TcpServer实现2-5.svg)
+![diagram](https://raw.githubusercontent.com/ChessNineeee/Markdown4Zhihu/master/Data/TcpServer实现2/TcpServer实现2-5_1.svg)
 
 介绍完`TcpConnection` 的最后两个成员，我们来看看它的类型依赖关系：
 
-![diagram](https://raw.githubusercontent.com/ChessNineeee/Markdown4Zhihu/master/Data/TcpServer实现2/TcpServer实现2-6.svg)
+![diagram](https://raw.githubusercontent.com/ChessNineeee/Markdown4Zhihu/master/Data/TcpServer实现2/TcpServer实现2-6_1.svg)
 
 为了更好地理解`TcpConnection` 相关接口的实现，我们首先先来看看`Socket` 和 `Buffer` 的实现。
 
@@ -552,7 +552,7 @@ void TcpServer::newConnection(int sockfd, const InetAddress& peerAddr) {
 
 首先，当新的TCP连接到达内核套接字的全连接队列时，`Acceptor` 监听的套接字对应的文件描述符上发生可读事件，事件循环通过调用`Acceptor::handleRead` 函数处理该事件。`handleRead` 函数首先通过系统调用`accept` 获取新TCP连接对应的文件描述符，随后调用`TcpServer` 绑定的回调函数`TcpServer::newConnection`执行后续流程。在`newConnection` 函数中，新的`TcpConnection` 对象被创建，其一系列回调函数也被设置。最终，事件循环通过调用`TcpConnection` 的`TcpConnection::connectEstablished` 函数，开始负责处理该对象上后续发生的I/O事件。整体过程如图所示：
 
-![diagram](https://raw.githubusercontent.com/ChessNineeee/Markdown4Zhihu/master/Data/TcpServer实现2/TcpServer实现2-7.svg)
+![diagram](https://raw.githubusercontent.com/ChessNineeee/Markdown4Zhihu/master/Data/TcpServer实现2/TcpServer实现2-7_1.svg)
 
 相较于TCP连接的获取，TCP连接的关闭场景更复杂一些。`TcpConnection` 提供了两种关闭连接的方式，分别是调用`handleClose` 函数和调用`shutdownInLoop` 函数，它们的实现如下：
 
