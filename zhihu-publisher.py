@@ -65,7 +65,8 @@ def rename_image_ref(m, original=True):
                 while op.exists(op.join(args.image_folder_path, img_name_new)):
                     img_name_new = img_stem+"_"+str(i)+img_suffix
                     i+=1
-            
+            print(full_img_path)
+            print(op.join(args.image_folder_path, img_name_new))
             copyfile(full_img_path, op.join(args.image_folder_path, img_name_new))
             full_img_path = op.join(args.image_folder_path, img_name_new)
 
