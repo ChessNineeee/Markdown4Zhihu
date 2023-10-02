@@ -51,6 +51,7 @@ def formula_ops(_lines):
 def rename_image_ref(m, original=True):
     # global image_folder_path
     ori_path = m.group(2) if original else m.group(1)
+    print(ori_path)
     try:
         if op.exists(ori_path):
             full_img_path = ori_path
